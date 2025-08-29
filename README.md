@@ -1,4 +1,4 @@
-# Urls-Random
+# RandomURLs
 A small web page that supports the convergence of multiple URLs.
 
  [Read the Chinese version](README_CN.md)
