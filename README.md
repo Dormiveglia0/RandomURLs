@@ -39,8 +39,8 @@ KV is Cloudflare's key-value database, which we will use to store your link pool
 ### Step 5: Get Worker URL and Configure the Frontend
 
 1.  Return to your Worker's main overview page. You will see your Worker's URL in the top right, typically in the format `https://<your-worker-name>.<your-subdomain>.workers.dev`. Please **copy** this URL.
-2.  Go back to your `link-fuser-pro-backend.html` file.
-3.  In this file, you need to find **two** placeholders that say `'YOUR_WORKER_URL_HERE'`.
+2.  Go back to your `index.html` file.
+3.  In this file, you need to find **one** placeholders that say `'YOUR_WORKER_URL_HERE'`.
 4.  **Replace both** of these placeholders with the URL you just copied.
 
 **Example:** If your Worker URL is `https://my-link-fuser-api.user.workers.dev`, the configuration in the code should be changed to:
