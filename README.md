@@ -1,6 +1,8 @@
 # Urls-Random
 A small web page that supports the convergence of multiple URLs.
 
+ [Read the Chinese version](README_CN.md)
+
 ### Step 1: Create a Cloudflare Account
 
 If you don't have an account yet, please visit the [Cloudflare website](https://dash.cloudflare.com/sign-up) to register for a free account.
