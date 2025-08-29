@@ -34,8 +34,8 @@ KV 是 Cloudflare 的键值数据库，我们将用它来存储您的链接池�
 ### 第5步：获取 Worker URL 并配置前端文件
 
 1.  返回您的 Worker 的主管理页面（概览页面）。您会在右上角看到您的 Worker 的 URL，格式通常是 `https://<您的Worker名称>.<您的子域名>.workers.dev`。请**复制**这个 URL。
-2.  回到您的 `link-fuser-pro-backend.html` 文件。
-3.  在这个文件中，您需要找到**两处** `'YOUR_WORKER_URL_HERE'` 占位符。
+2.  回到您的 `index.html` 文件。
+3.  在这个文件中，您需要找到**一处** `'YOUR_WORKER_URL_HERE'` 占位符。
 4.  将这两处占位符**全部替换**为您刚刚复制的 Worker URL。
 
 **示例：** 如果您的 Worker URL 是 `https://my-link-fuser-api.user.workers.dev`，那么代码中的配置应该改为：
