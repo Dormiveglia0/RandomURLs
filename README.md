@@ -3,7 +3,7 @@ A small web page that supports the convergence of multiple URLs.
 
 ### Step 1: Create a Cloudflare Account
 
-If you don't have an account yet, please visit the [Cloudflare website](https://www.google.com/search?q=https://dash.cloudflare.com/sign-up) to register for a free account.
+If you don't have an account yet, please visit the [Cloudflare website](https://dash.cloudflare.com/sign-up) to register for a free account.
 
 ### Step 2: Create a Worker Service
 
