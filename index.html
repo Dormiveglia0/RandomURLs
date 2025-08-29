@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>链接融合器 Pro (后端版)</title>
+    <title>链接融合器 Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -92,6 +92,12 @@
                 <ul id="link-list" class="space-y-2">
                     <!-- 链接将在这里动态生成 -->
                 </ul>
+                 <!-- 新增：显示全部/收起按钮容器 -->
+                <div id="toggle-links-container" class="mt-4 text-center hidden">
+                    <button id="toggle-links-btn" class="text-indigo-400 hover:text-indigo-300 transition duration-300 text-sm font-semibold">
+                        <!-- 按钮文字动态生成 -->
+                    </button>
+                </div>
             </div>
         </div>
         
@@ -149,6 +155,8 @@
             const addLinkBtn = document.getElementById('add-link-btn');
             const linkListEl = document.getElementById('link-list');
             const linkCountEl = document.getElementById('link-count');
+            const toggleLinksContainer = document.getElementById('toggle-links-container');
+            const toggleLinksBtn = document.getElementById('toggle-links-btn');
 
             const modalEl = document.getElementById('modal');
             const modalTitleEl = document.getElementById('modal-title');
@@ -164,6 +172,11 @@
             let state = {
                 pools: {},
                 activePoolId: null,
+            };
+            
+            // --- UI 状态 ---
+            let uiState = {
+                isLinkListExpanded: false,
             };
 
             // --- API 调用 ---
@@ -253,6 +266,7 @@
                         item.dataset.id = id;
                         item.addEventListener('click', () => {
                             state.activePoolId = id;
+                            uiState.isLinkListExpanded = false; // 切换池时重置展开状态
                             render();
                         });
                         poolListEl.appendChild(item);
@@ -292,26 +306,38 @@
             }
             
             function renderLinkList(links = []) {
+                const LINKS_PER_PAGE = 10;
                 linkListEl.innerHTML = '';
                 linkCountEl.textContent = links.length;
-                if(links.length === 0){
+
+                if (links.length === 0) {
                     linkListEl.innerHTML = '<p class="text-gray-500 text-center">暂无链接</p>';
+                    toggleLinksContainer.classList.add('hidden');
+                    return;
+                }
+
+                const linksToShow = uiState.isLinkListExpanded ? links : links.slice(0, LINKS_PER_PAGE);
+
+                linksToShow.forEach((link, index) => {
+                    const li = document.createElement('li');
+                    li.className = 'flex items-center justify-between bg-gray-800 p-2 rounded-lg';
+                    li.innerHTML = `
+                        <span class="text-gray-400 mr-2">${index + 1}.</span>
+                        <input type="text" value="${link}" class="flex-grow bg-transparent text-gray-300 border-none focus:ring-0" readonly>
+                        <button data-index="${index}" class="delete-link-btn text-red-500 hover:text-red-400 ml-2 transition duration-300">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    `;
+                    linkListEl.appendChild(li);
+                });
+
+                if (links.length > LINKS_PER_PAGE) {
+                    toggleLinksContainer.classList.remove('hidden');
+                    toggleLinksBtn.textContent = uiState.isLinkListExpanded ? '收起' : `显示全部 (${links.length} 条)`;
                 } else {
-                    links.forEach((link, index) => {
-                        const li = document.createElement('li');
-                        li.className = 'flex items-center justify-between bg-gray-800 p-2 rounded-lg';
-                        li.innerHTML = `
-                            <span class="text-gray-400 mr-2">${index + 1}.</span>
-                            <input type="text" value="${link}" class="flex-grow bg-transparent text-gray-300 border-none focus:ring-0" readonly>
-                            <button data-index="${index}" class="delete-link-btn text-red-500 hover:text-red-400 ml-2 transition duration-300">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        `;
-                        linkListEl.appendChild(li);
-                    });
+                    toggleLinksContainer.classList.add('hidden');
                 }
             }
-            
 
             // --- 事件处理 ---
             function handleAddLink() {
@@ -414,7 +440,6 @@
                 }
                 
                 state.pools = await api.getPools();
-                // 找到第一个池子作为默认激活的池子
                 const firstPoolId = Object.keys(state.pools).sort()[0];
                 if(firstPoolId) {
                     state.activePoolId = firstPoolId;
@@ -462,6 +487,12 @@
                 modeRandomBtn.addEventListener('click', () => handleChangeMode('random'));
                 modePollBtn.addEventListener('click', () => handleChangeMode('poll'));
                 copyLinkBtn.addEventListener('click', handleCopyLink);
+                
+                toggleLinksBtn.addEventListener('click', () => {
+                    uiState.isLinkListExpanded = !uiState.isLinkListExpanded;
+                    // 只重新渲染链接列表，避免整个页面刷新
+                    renderLinkList(state.pools[state.activePoolId].links);
+                });
             }
 
             init();
