@@ -1,502 +1,471 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>链接融合器 Pro - Link Fuser Pro</title>
+    <title>链接融合器 Pro (后端版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #111827; color: #d1d5db; }
-        .btn { transition: all 0.2s ease-in-out; }
-        .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
-        .btn-primary { background-color: #3b82f6; color: white; }
-        .btn-primary:hover:not(:disabled) { background-color: #2563eb; }
-        .btn-secondary { background-color: #f59e0b; color: white; }
-        .btn-secondary:hover:not(:disabled) { background-color: #d97706; }
-        .btn-danger { background-color: #ef4444; color: white; }
-        .btn-danger:hover:not(:disabled) { background-color: #dc2626; }
-        .url-item:hover { background-color: #374151; }
-        .disabled-btn { opacity: 0.5; cursor: not-allowed; }
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3b82f6;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
         }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .toast {
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        .toast.show {
+            visibility: visible;
+            opacity: 1;
+        }
     </style>
-    
-    <!-- 跳转逻辑 -->
-    <script>
-    (async function() {
-        const hash = window.location.hash;
-        if (!hash || hash.length < 2) {
-            return;
-        }
-        
-        const poolId = hash.substring(1);
-        // 您需要将 'YOUR_WORKER_URL_HERE' 替换为您的 Cloudflare Worker URL
-        const WORKER_URL = 'https://my-link-fuser-api.huangzhe321.workers.dev'; 
-
-        // 优化检查逻辑，防止“全部替换”导致错误
-        if (WORKER_URL.includes('YOUR_WORKER_URL_HERE')) {
-            console.error("请先在跳转脚本中配置您的Worker URL!");
-            return;
-        }
-
-        try {
-            document.documentElement.style.display = 'none';
-            const response = await fetch(`${WORKER_URL}/api/pools/${poolId}`);
-            
-            if (!response.ok) {
-                throw new Error(`Pool not found or worker error.`);
-            }
-
-            const data = await response.json();
-
-            if (!data.urls || data.urls.length === 0) return;
-
-            let targetUrl;
-            if (data.mode === 'random') {
-                targetUrl = data.urls[Math.floor(Math.random() * data.urls.length)];
-            } else { // sequential
-                const storageKey = `sequentialIndex_${poolId}`;
-                let currentIndex = parseInt(localStorage.getItem(storageKey) || '0', 10);
-                targetUrl = data.urls[currentIndex % data.urls.length];
-                localStorage.setItem(storageKey, (currentIndex + 1).toString());
-            }
-
-            if (targetUrl) {
-                window.location.replace(targetUrl);
-            }
-        } catch (error) {
-            console.error("跳转失败:", error);
-            document.documentElement.style.display = '';
-        }
-    })();
-    </script>
 </head>
-<body class="antialiased">
 
-    <div id="toast-container" class="fixed top-5 right-5 z-[100] space-y-2"></div>
+<body class="bg-gray-900 text-gray-200 flex flex-col min-h-screen">
 
-    <div id="loading-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-80 flex flex-col items-center justify-center z-[200]" style="display: none;">
-        <div class="loader"></div>
-        <p class="text-white text-lg mt-4">正在加载...</p>
-    </div>
+    <!-- 主容器 -->
+    <div class="flex-grow container mx-auto p-4 md:p-6 lg:p-8 flex flex-col md:flex-row gap-6">
 
-    <div id="app-container" class="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
-        <header class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-white mb-2">链接融合器 Pro</h1>
-            <p class="text-lg text-gray-400">创建并管理多个链接池，生成固定的短链接。</p>
-        </header>
-
-        <main id="main-content" class="space-y-8" style="display: none;">
-            <section class="bg-gray-800 p-6 rounded-xl shadow-lg">
-                <h2 class="text-2xl font-semibold text-white mb-4">1. 链接池管理</h2>
-                <div class="flex flex-col sm:flex-row gap-4 items-center">
-                    <select id="pool-selector" class="w-full sm:w-auto flex-grow bg-gray-700 text-white px-4 py-2.5 rounded-md border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none transition"></select>
-                    <div class="flex gap-2 sm:gap-4 flex-shrink-0">
-                         <button id="new-pool-btn" class="btn btn-primary font-semibold px-4 py-2 rounded-md">新建</button>
-                         <button id="rename-pool-btn" class="btn btn-secondary font-semibold px-4 py-2 rounded-md">重命名</button>
-                         <button id="delete-pool-btn" class="btn btn-danger font-semibold px-4 py-2 rounded-md">删除</button>
-                    </div>
-                </div>
-            </section>
-            
-            <section class="bg-gray-800 p-6 rounded-xl shadow-lg">
-                <h2 class="text-2xl font-semibold text-white mb-4">2. 添加链接到当前池</h2>
-                <form id="add-url-form" class="flex flex-col sm:flex-row gap-4">
-                    <input type="url" id="url-input" placeholder="https://example.com/image.png" required class="flex-grow bg-gray-700 text-white px-4 py-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
-                    <button type="submit" class="btn btn-primary font-semibold px-6 py-2 rounded-md">添加</button>
-                </form>
-            </section>
-
-            <section class="bg-gray-800 p-6 rounded-xl shadow-lg">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-semibold text-white">链接列表 (<span id="url-count">0</span>)</h2>
-                </div>
-                <div id="url-list" class="space-y-3 max-h-96 overflow-y-auto pr-2">
-                    <p id="empty-state" class="text-gray-500">暂无链接，请在上方添加。</p>
-                </div>
-            </section>
-
-            <section class="bg-gray-800 p-6 rounded-xl shadow-lg">
-                <h2 class="text-2xl font-semibold text-white mb-4">3. 选择调取方式</h2>
-                <div class="flex items-center space-x-8">
-                    <label class="flex items-center cursor-pointer"><input type="radio" name="mode" value="random" class="h-5 w-5 text-blue-500 bg-gray-700 border-gray-600 focus:ring-blue-500"><span class="ml-3 text-lg text-white">随机</span></label>
-                    <label class="flex items-center cursor-pointer"><input type="radio" name="mode" value="sequential" class="h-5 w-5 text-blue-500 bg-gray-700 border-gray-600 focus:ring-blue-500"><span class="ml-3 text-lg text-white">轮询</span></label>
-                </div>
-            </section>
-            
-            <section class="bg-gray-800 p-6 rounded-xl shadow-lg">
-                <h2 class="text-2xl font-semibold text-white mb-4">4. 生成固定链接</h2>
-                <div class="flex flex-col sm:flex-row gap-4">
-                    <input type="text" id="fused-url" readonly placeholder="配置链接池后将在此生成" class="flex-grow bg-gray-900 text-gray-400 px-4 py-2 rounded-md border border-gray-600 cursor-not-allowed">
-                    <button id="copy-btn" class="btn btn-primary font-semibold px-6 py-2 rounded-md" disabled>复制</button>
-                </div>
-                 <p class="mt-4 text-sm text-gray-500"><strong>说明：</strong>这是一个固定链接。数据已保存在云端，分享此链接即可实现跳转。</p>
-            </section>
-        </main>
-         <div id="welcome-message" class="text-center p-8 bg-gray-800 rounded-xl flex flex-col items-center justify-center">
-             <h2 class="text-2xl font-semibold text-white mb-4">欢迎使用链接融合器 Pro</h2>
-             <p class="text-gray-400 mb-6">您还没有创建任何链接池。请创建一个来开始使用。</p>
-             <button id="initial-create-btn" class="btn btn-primary font-semibold px-6 py-3 rounded-md text-lg">创建第一个链接池</button>
+        <!-- 左侧：链接池列表 -->
+        <div class="w-full md:w-1/3 lg:w-1/4 bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col">
+            <h2 class="text-xl font-bold mb-4 border-b border-gray-700 pb-2">链接池</h2>
+            <div id="pool-list" class="flex-grow overflow-y-auto pr-2">
+                <!-- 链接池列表将在这里动态生成 -->
+            </div>
+            <button id="add-pool-btn" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 flex items-center justify-center gap-2">
+                <i class="fas fa-plus"></i> 新建链接池
+            </button>
         </div>
+
+        <!-- 右侧：链接池详情 -->
+        <div id="pool-details" class="w-full md:w-2/3 lg:w-3/4 bg-gray-800 rounded-lg shadow-lg p-6 hidden flex-col">
+            <!-- 详情头部 -->
+            <div class="flex justify-between items-center mb-4 border-b border-gray-700 pb-4">
+                <h2 id="pool-title" class="text-2xl font-bold text-white"></h2>
+                <div>
+                    <button id="rename-pool-btn" class="text-gray-400 hover:text-white transition duration-300 mr-3"><i class="fas fa-edit"></i> 重命名</button>
+                    <button id="delete-pool-btn" class="text-red-500 hover:text-red-400 transition duration-300"><i class="fas fa-trash"></i> 删除</button>
+                </div>
+            </div>
+
+            <!-- 跳转模式 -->
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold mb-3">跳转模式</h3>
+                <div class="flex gap-4">
+                    <button id="mode-random" class="mode-btn flex-1 py-2 px-4 rounded-lg transition duration-300">
+                        <i class="fas fa-random mr-2"></i> 随机
+                    </button>
+                    <button id="mode-poll" class="mode-btn flex-1 py-2 px-4 rounded-lg transition duration-300">
+                        <i class="fas fa-sync-alt mr-2"></i> 轮询
+                    </button>
+                </div>
+            </div>
+
+             <!-- 融合链接 -->
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold mb-2">融合链接 (可直接用于 CSS/IMG)</h3>
+                <div class="flex items-center bg-gray-900 rounded-lg p-2">
+                    <input id="fused-link" type="text" readonly class="w-full bg-transparent text-gray-300 border-none focus:ring-0">
+                    <button id="copy-link-btn" class="ml-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+
+
+            <!-- 添加链接 -->
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold mb-3">添加新链接</h3>
+                <div class="flex gap-2">
+                    <input type="url" id="new-link-input" placeholder="https://example.com/image.png" class="flex-grow bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white">
+                    <button id="add-link-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 flex items-center justify-center gap-2">
+                        <i class="fas fa-plus"></i> 添加
+                    </button>
+                </div>
+            </div>
+
+            <!-- 链接列表 -->
+            <div class="flex-grow overflow-y-auto bg-gray-900 rounded-lg p-4">
+                <h3 class="text-lg font-semibold mb-3">链接列表 (<span id="link-count">0</span>)</h3>
+                <ul id="link-list" class="space-y-2">
+                    <!-- 链接将在这里动态生成 -->
+                </ul>
+            </div>
+        </div>
+        
+        <!-- 初始占位符 -->
+        <div id="placeholder" class="w-full md:w-2/3 lg:w-3/4 flex items-center justify-center bg-gray-800 rounded-lg shadow-lg p-6">
+            <div class="text-center text-gray-500">
+                <i class="fas fa-hand-pointer fa-3x mb-4"></i>
+                <p class="text-xl">请在左侧选择或创建一个链接池</p>
+            </div>
+        </div>
+
     </div>
-    
-    <div id="modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50" style="display: none;">
-        <div class="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md">
-            <h3 id="modal-title" class="text-2xl font-bold text-white mb-4">Modal Title</h3>
-            <p id="modal-text" class="text-gray-400 mb-6"></p>
-            <input type="text" id="modal-input" class="w-full bg-gray-700 text-white px-4 py-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none transition mb-6">
-            <div class="flex justify-end gap-4">
-                <button id="modal-cancel" class="btn bg-gray-600 hover:bg-gray-500 text-white font-semibold px-6 py-2 rounded-md">取消</button>
-                <button id="modal-confirm" class="btn btn-primary font-semibold px-6 py-2 rounded-md">确认</button>
+
+    <!-- Modal 对话框 -->
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50" style="display: none;">
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+            <h3 id="modal-title" class="text-xl font-bold mb-4">Modal Title</h3>
+            <p id="modal-text" class="text-gray-400 mb-4 hidden"></p>
+            <input type="text" id="modal-input" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white">
+            <div class="flex justify-end gap-3">
+                <button id="modal-cancel" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg transition duration-300">取消</button>
+                <button id="modal-confirm" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition duration-300">确认</button>
             </div>
         </div>
     </div>
 
+    <!-- Toast 消息提示 -->
+    <div id="toast" class="toast fixed bottom-5 right-5 bg-red-600 text-white py-2 px-5 rounded-lg shadow-lg">
+        <p id="toast-message"></p>
+    </div>
+
+
     <script>
-    (function() {
-        // --- 配置 ---
-        // !!! 重要：请将 'YOUR_WORKER_URL_HERE' 替换为您的 Cloudflare Worker URL
-        const WORKER_URL = 'https://my-link-fuser-api.huangzhe321.workers.dev';
+        document.addEventListener('DOMContentLoaded', () => {
 
-        // --- 辅助函数 & API ---
-        const showToast = (message, isError = false) => {
-            const toastId = `toast-${Date.now()}`;
-            const toast = document.createElement('div');
-            toast.id = toastId;
-            const bgColor = isError ? 'bg-red-500' : 'bg-green-500';
-            toast.className = `w-full max-w-xs p-4 text-white rounded-lg shadow-lg ${bgColor} transform transition-all duration-300 translate-x-full`;
-            toast.innerHTML = `<p>${message}</p>`;
-            document.getElementById('toast-container').appendChild(toast);
-            setTimeout(() => { toast.classList.remove('translate-x-full'); }, 10);
-            setTimeout(() => {
-                toast.classList.add('translate-x-full', 'opacity-0');
-                toast.addEventListener('transitionend', () => toast.remove());
-            }, 3000);
-        };
+            // --- 配置 ---
+            // !!! 重要：请将 'YOUR_WORKER_URL_HERE' 替换为您的 Cloudflare Worker URL
+            // 注意：URL末尾不要带斜杠
+            const WORKER_URL = 'YOUR_WORKER_URL_HERE';
+            const API_BASE = `${WORKER_URL}/api/pools`;
 
-        const api = {
-            async getPools() { return await this._request('GET', '/api/pools'); },
-            async createPool(name) { return await this._request('POST', '/api/pools', { name }); },
-            async updatePool(id, data) { return await this._request('PUT', `/api/pools/${id}`, data); },
-            async deletePool(id) { return await this._request('DELETE', `/api/pools/${id}`); },
-            async _request(method, path, body = null) {
-                // 优化检查逻辑，防止“全部替换”导致错误
-                if (WORKER_URL.includes('YOUR_WORKER_URL_HERE')) {
-                    showToast('请先在JS代码中配置您的Worker URL!', true);
-                    throw new Error("Worker URL not configured");
-                }
-                const options = { method, headers: { 'Content-Type': 'application/json' } };
-                if (body) options.body = JSON.stringify(body);
-                const response = await fetch(WORKER_URL + path, options);
-                if (!response.ok) {
-                    const error = await response.json().catch(() => ({ message: response.statusText }));
-                    throw new Error(error.message);
-                }
-                if (response.status === 204) return null;
-                return response.json();
-            }
-        };
+            // --- DOM 元素 ---
+            const poolListEl = document.getElementById('pool-list');
+            const addPoolBtn = document.getElementById('add-pool-btn');
+            const poolDetailsEl = document.getElementById('pool-details');
+            const placeholderEl = document.getElementById('placeholder');
+            const poolTitleEl = document.getElementById('pool-title');
+            const renamePoolBtn = document.getElementById('rename-pool-btn');
+            const deletePoolBtn = document.getElementById('delete-pool-btn');
+            const modeRandomBtn = document.getElementById('mode-random');
+            const modePollBtn = document.getElementById('mode-poll');
+            const fusedLinkInput = document.getElementById('fused-link');
+            const copyLinkBtn = document.getElementById('copy-link-btn');
+            const newLinkInput = document.getElementById('new-link-input');
+            const addLinkBtn = document.getElementById('add-link-btn');
+            const linkListEl = document.getElementById('link-list');
+            const linkCountEl = document.getElementById('link-count');
 
-        // --- UI & State Management ---
-        const dom = {
-            mainContent: document.getElementById('main-content'),
-            welcomeMessage: document.getElementById('welcome-message'),
-            initialCreateBtn: document.getElementById('initial-create-btn'),
-            poolSelector: document.getElementById('pool-selector'),
-            newPoolBtn: document.getElementById('new-pool-btn'),
-            renamePoolBtn: document.getElementById('rename-pool-btn'),
-            deletePoolBtn: document.getElementById('delete-pool-btn'),
-            addUrlForm: document.getElementById('add-url-form'),
-            urlInput: document.getElementById('url-input'),
-            urlListDiv: document.getElementById('url-list'),
-            urlCountSpan: document.getElementById('url-count'),
-            modeRadios: document.querySelectorAll('input[name="mode"]'),
-            fusedUrlInput: document.getElementById('fused-url'),
-            copyBtn: document.getElementById('copy-btn'),
-            emptyState: document.getElementById('empty-state'),
-            loadingOverlay: document.getElementById('loading-overlay'),
-            modal: {
-                el: document.getElementById('modal'),
-                title: document.getElementById('modal-title'),
-                text: document.getElementById('modal-text'),
-                input: document.getElementById('modal-input'),
-                confirmBtn: document.getElementById('modal-confirm'),
-                cancelBtn: document.getElementById('modal-cancel'),
-            }
-        };
-        
-        let appState = { pools: {}, activePoolId: null };
-        let onModalConfirm = null;
-
-        const showLoading = (show) => {
-            dom.loadingOverlay.style.display = show ? 'flex' : 'none';
-        };
-
-        const showModal = ({ title, text = '', inputVisible = true, placeholder = '', inputValue = '', confirmText = '确认' }) => {
-            dom.modal.title.textContent = title;
-            dom.modal.text.textContent = text;
-            dom.modal.text.style.display = text ? 'block' : 'none';
-            dom.modal.input.style.display = inputVisible ? 'block' : 'none';
-            dom.modal.input.placeholder = placeholder;
-            dom.modal.input.value = inputValue;
-            dom.modal.confirmBtn.textContent = confirmText;
-            dom.modal.el.style.display = 'flex';
-            if (inputVisible) setTimeout(() => dom.modal.input.focus(), 50);
-        };
-        
-        const hideModal = () => {
-            dom.modal.el.style.display = 'none';
-            onModalConfirm = null;
-        };
-        
-        const generateFusedUrl = () => {
-            if (appState.activePoolId) {
-                const baseUrl = window.location.href.split('#')[0];
-                dom.fusedUrlInput.value = `${baseUrl}#${appState.activePoolId}`;
-                dom.copyBtn.disabled = false;
-            } else {
-                dom.fusedUrlInput.value = '';
-                dom.copyBtn.disabled = true;
-            }
-        };
-        
-        const render = () => {
-            const hasPools = Object.keys(appState.pools).length > 0;
-            dom.mainContent.style.display = hasPools ? 'block' : 'none';
-            dom.welcomeMessage.style.display = hasPools ? 'none' : 'flex';
+            const modalEl = document.getElementById('modal');
+            const modalTitleEl = document.getElementById('modal-title');
+            const modalTextEl = document.getElementById('modal-text');
+            const modalInputEl = document.getElementById('modal-input');
+            const modalCancelBtn = document.getElementById('modal-cancel');
+            const modalConfirmBtn = document.getElementById('modal-confirm');
             
-            if (!hasPools) {
-                 generateFusedUrl();
-                 return;
+            const toastEl = document.getElementById('toast');
+            const toastMessageEl = document.getElementById('toast-message');
+
+            // --- 应用状态 ---
+            let state = {
+                pools: {},
+                activePoolId: null,
+            };
+
+            // --- API 调用 ---
+            const api = {
+                async getPools() {
+                    if (isWorkerUrlConfigured()) {
+                       try {
+                            const response = await fetch(API_BASE);
+                            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                            return await response.json();
+                        } catch (error) {
+                            showToast(`加载数据失败: ${error.message}`);
+                            console.error("加载数据失败:", error);
+                            return {};
+                        }
+                    }
+                    return {};
+                },
+                async savePool(id, data) {
+                    if (isWorkerUrlConfigured()){
+                        try {
+                            const response = await fetch(`${API_BASE}/${id}`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(data),
+                            });
+                            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        } catch (error) {
+                            showToast(`保存失败: ${error.message}`);
+                            console.error("保存失败:", error);
+                        }
+                    }
+                },
+                async deletePool(id) {
+                     if (isWorkerUrlConfigured()){
+                        try {
+                            const response = await fetch(`${API_BASE}/${id}`, {
+                                method: 'DELETE',
+                            });
+                            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        } catch (error) {
+                            showToast(`删除失败: ${error.message}`);
+                            console.error("删除失败:", error);
+                        }
+                    }
+                },
+            };
+            
+            // --- Toast 消息提示 ---
+            let toastTimer;
+            function showToast(message) {
+                toastMessageEl.textContent = message;
+                toastEl.classList.add('show');
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(() => {
+                    toastEl.classList.remove('show');
+                }, 3000);
+            }
+
+            // --- 渲染函数 ---
+            function render() {
+                renderPoolList();
+                if (state.activePoolId && state.pools[state.activePoolId]) {
+                    renderPoolDetails();
+                    poolDetailsEl.classList.remove('hidden');
+                    poolDetailsEl.classList.add('flex');
+                    placeholderEl.classList.add('hidden');
+                } else {
+                    poolDetailsEl.classList.add('hidden');
+                    poolDetailsEl.classList.remove('flex');
+                    placeholderEl.classList.remove('hidden');
+                }
+            }
+
+            function renderPoolList() {
+                poolListEl.innerHTML = '';
+                const sortedIds = Object.keys(state.pools).sort();
+                if (sortedIds.length === 0) {
+                    poolListEl.innerHTML = '<p class="text-gray-500 text-center mt-4">还没有链接池，点击下方按钮创建一个吧！</p>';
+                } else {
+                    sortedIds.forEach(id => {
+                        const pool = state.pools[id];
+                        const isActive = id === state.activePoolId;
+                        const item = document.createElement('div');
+                        item.className = `p-3 rounded-lg cursor-pointer transition duration-200 mb-2 ${isActive ? 'bg-indigo-600 text-white' : 'hover:bg-gray-700'}`;
+                        item.textContent = pool.name || id;
+                        item.dataset.id = id;
+                        item.addEventListener('click', () => {
+                            state.activePoolId = id;
+                            render();
+                        });
+                        poolListEl.appendChild(item);
+                    });
+                }
+            }
+
+            function renderPoolDetails() {
+                const pool = state.pools[state.activePoolId];
+                if (!pool) return;
+                poolTitleEl.textContent = pool.name || state.activePoolId;
+                updateModeButtons(pool.mode);
+                updateFusedLink();
+                renderLinkList(pool.links);
             }
             
-            dom.poolSelector.innerHTML = '';
-            Object.keys(appState.pools).forEach(id => {
-                const pool = appState.pools[id];
-                const option = document.createElement('option');
-                option.value = id;
-                option.textContent = pool.name;
-                if (id === appState.activePoolId) option.selected = true;
-                dom.poolSelector.appendChild(option);
-            });
-
-            const pool = appState.activePoolId ? appState.pools[appState.activePoolId] : null;
-            if (!pool) {
-                 const firstPoolId = Object.keys(appState.pools)[0];
-                 if (firstPoolId) appState.activePoolId = firstPoolId;
-                 render();
-                 return;
+            function updateFusedLink() {
+                if (!isWorkerUrlConfigured() || !state.activePoolId) {
+                    fusedLinkInput.value = '';
+                    return;
+                }
+                fusedLinkInput.value = `${WORKER_URL}/${state.activePoolId}`;
             }
 
-            document.querySelector(`input[name="mode"][value="${pool.mode}"]`).checked = true;
-            dom.urlListDiv.innerHTML = '';
-            if (pool.urls.length === 0) {
-                dom.urlListDiv.appendChild(dom.emptyState);
-                dom.emptyState.style.display = 'block';
-            } else {
-                dom.emptyState.style.display = 'none';
-                pool.urls.forEach((url, index) => {
-                    const div = document.createElement('div');
-                    div.className = 'url-item flex items-center justify-between bg-gray-700 p-3 rounded-md transition-all';
-                    div.innerHTML = `<p class="text-gray-300 truncate mr-4" title="${url}">${url}</p>
-                                     <button data-index="${index}" class="btn-delete-url btn btn-danger text-sm font-medium px-3 py-1 rounded-md flex-shrink-0">删除</button>`;
-                    dom.urlListDiv.appendChild(div);
+            function updateModeButtons(mode) {
+                if (mode === 'random') {
+                    modeRandomBtn.classList.add('bg-indigo-600', 'text-white');
+                    modeRandomBtn.classList.remove('bg-gray-700', 'text-gray-300');
+                    modePollBtn.classList.add('bg-gray-700', 'text-gray-300');
+                    modePollBtn.classList.remove('bg-indigo-600', 'text-white');
+                } else {
+                    modePollBtn.classList.add('bg-indigo-600', 'text-white');
+                    modePollBtn.classList.remove('bg-gray-700', 'text-gray-300');
+                    modeRandomBtn.classList.add('bg-gray-700', 'text-gray-300');
+                    modeRandomBtn.classList.remove('bg-indigo-600', 'text-white');
+                }
+            }
+            
+            function renderLinkList(links = []) {
+                linkListEl.innerHTML = '';
+                linkCountEl.textContent = links.length;
+                if(links.length === 0){
+                    linkListEl.innerHTML = '<p class="text-gray-500 text-center">暂无链接</p>';
+                } else {
+                    links.forEach((link, index) => {
+                        const li = document.createElement('li');
+                        li.className = 'flex items-center justify-between bg-gray-800 p-2 rounded-lg';
+                        li.innerHTML = `
+                            <span class="text-gray-400 mr-2">${index + 1}.</span>
+                            <input type="text" value="${link}" class="flex-grow bg-transparent text-gray-300 border-none focus:ring-0" readonly>
+                            <button data-index="${index}" class="delete-link-btn text-red-500 hover:text-red-400 ml-2 transition duration-300">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        `;
+                        linkListEl.appendChild(li);
+                    });
+                }
+            }
+            
+
+            // --- 事件处理 ---
+            function handleAddLink() {
+                const url = newLinkInput.value.trim();
+                if (!url) {
+                    showToast('链接不能为空！');
+                    return;
+                }
+                try {
+                    new URL(url);
+                } catch (_) {
+                    showToast('请输入有效的URL！');
+                    return;
+                }
+
+                const pool = state.pools[state.activePoolId];
+                if (pool.links.includes(url)) {
+                    showToast('该链接已存在！');
+                    return;
+                }
+                pool.links.push(url);
+                newLinkInput.value = '';
+                saveAndRender();
+            }
+
+            function handleDeleteLink(e) {
+                if (e.target.closest('.delete-link-btn')) {
+                    const button = e.target.closest('.delete-link-btn');
+                    const index = parseInt(button.dataset.index, 10);
+                    const pool = state.pools[state.activePoolId];
+                    pool.links.splice(index, 1);
+                    saveAndRender();
+                }
+            }
+            
+            function handleChangeMode(newMode) {
+                const pool = state.pools[state.activePoolId];
+                pool.mode = newMode;
+                saveAndRender();
+            }
+
+            function handleCopyLink() {
+                if(!fusedLinkInput.value){
+                    showToast('没有可复制的链接！');
+                    return;
+                }
+                fusedLinkInput.select();
+                document.execCommand('copy');
+                showToast('已复制到剪贴板！');
+            }
+            
+            async function saveAndRender() {
+                const pool = state.pools[state.activePoolId];
+                await api.savePool(state.activePoolId, pool);
+                render();
+            }
+
+            // --- Modal 逻辑 ---
+            let modalResolve;
+
+            function showModal({ title, text = '', inputValue = '', inputPlaceholder = '' }) {
+                modalTitleEl.textContent = title;
+                modalTextEl.textContent = text;
+                modalTextEl.classList.toggle('hidden', !text);
+                modalInputEl.value = inputValue;
+                modalInputEl.placeholder = inputPlaceholder;
+                modalInputEl.classList.toggle('hidden', !inputPlaceholder && !inputValue);
+
+                modalEl.style.display = 'flex';
+                return new Promise(resolve => {
+                    modalResolve = resolve;
                 });
             }
-            dom.urlCountSpan.textContent = pool.urls.length;
 
-            const manageButtonsDisabled = !appState.activePoolId;
-            [dom.renamePoolBtn, dom.deletePoolBtn].forEach(btn => {
-                btn.disabled = manageButtonsDisabled;
-                btn.classList.toggle('disabled-btn', manageButtonsDisabled);
+            function hideModal() {
+                 modalEl.style.display = 'none';
+            }
+
+            modalCancelBtn.addEventListener('click', () => {
+                hideModal();
+                if (modalResolve) modalResolve(null);
             });
+            modalConfirmBtn.addEventListener('click', () => {
+                hideModal();
+                if (modalResolve) modalResolve(modalInputEl.value);
+            });
+            
+            // --- 初始化和事件绑定 ---
+            function isWorkerUrlConfigured() {
+                if (!WORKER_URL || WORKER_URL === 'YOUR_WORKER_URL_HERE' || WORKER_URL.trim() === '') {
+                     return false;
+                }
+                return true;
+            }
 
-            generateFusedUrl();
-        };
-
-        const init = async () => {
-            showLoading(true);
-            try {
-                const poolsList = await api.getPools();
-                appState.pools = poolsList.reduce((acc, pool) => {
-                    acc[pool.id] = pool;
-                    return acc;
-                }, {});
+            async function init() {
+                if (!isWorkerUrlConfigured()) {
+                    showToast('请先在JS代码中配置您的Worker URL!');
+                    console.error("请先在JS代码中配置您的Worker URL!");
+                }
                 
-                const savedActiveId = localStorage.getItem('linkFuserActivePool');
-                if (savedActiveId && appState.pools[savedActiveId]) {
-                    appState.activePoolId = savedActiveId;
-                } else {
-                    appState.activePoolId = poolsList.length > 0 ? poolsList[0].id : null;
+                state.pools = await api.getPools();
+                // 找到第一个池子作为默认激活的池子
+                const firstPoolId = Object.keys(state.pools).sort()[0];
+                if(firstPoolId) {
+                    state.activePoolId = firstPoolId;
                 }
                 
                 render();
-            } catch (e) {
-                showToast(`加载数据失败: ${e.message}`, true);
-            } finally {
-                showLoading(false);
-            }
-        };
 
-        // Event Listeners
-        dom.initialCreateBtn.addEventListener('click', () => {
-            showModal({ title: '创建新链接池', placeholder: '例如：我的图床' });
-            onModalConfirm = async (value) => {
-                if (value && value.trim()) {
-                    showLoading(true);
-                    hideModal();
-                    try {
-                        const newPool = await api.createPool(value.trim());
-                        appState.pools[newPool.id] = newPool;
-                        appState.activePoolId = newPool.id;
-                        localStorage.setItem('linkFuserActivePool', newPool.id);
+                addPoolBtn.addEventListener('click', async () => {
+                    const name = await showModal({ title: '创建新链接池', inputPlaceholder: '请输入链接池名称' });
+                    if (name) {
+                        const id = name.trim().replace(/\s+/g, '-').toLowerCase() + '-' + Date.now().toString(36);
+                        state.pools[id] = { name: name.trim(), mode: 'random', links: [] };
+                        state.activePoolId = id;
+                        await saveAndRender();
+                    }
+                });
+                
+                renamePoolBtn.addEventListener('click', async () => {
+                    const pool = state.pools[state.activePoolId];
+                    const newName = await showModal({ title: '重命名链接池', inputValue: pool.name });
+                    if (newName) {
+                        pool.name = newName.trim();
+                        await saveAndRender();
+                    }
+                });
+
+                deletePoolBtn.addEventListener('click', async () => {
+                    const pool = state.pools[state.activePoolId];
+                    const confirmation = await showModal({ title: '确认删除', text: `您确定要删除链接池 "${pool.name}" 吗？此操作无法撤销。`, inputPlaceholder: '输入 "delete" 确认' });
+                    if (confirmation === 'delete') {
+                        const idToDelete = state.activePoolId;
+                        delete state.pools[idToDelete];
+                        state.activePoolId = Object.keys(state.pools).sort()[0] || null;
+                        await api.deletePool(idToDelete);
                         render();
-                    } catch (e) {
-                        showToast(`创建失败: ${e.message}`, true);
-                    } finally {
-                        showLoading(false);
                     }
-                }
-            };
-        });
-        dom.newPoolBtn.addEventListener('click', () => dom.initialCreateBtn.click());
-
-        dom.renamePoolBtn.addEventListener('click', () => {
-            const pool = appState.pools[appState.activePoolId];
-            if (!pool) return;
-            showModal({ title: '重命名链接池', placeholder: '输入新名称', inputValue: pool.name });
-            onModalConfirm = async (value) => {
-                if (value && value.trim() && value.trim() !== pool.name) {
-                    showLoading(true);
-                    hideModal();
-                    try {
-                        const updatedPool = { ...pool, name: value.trim() };
-                        await api.updatePool(pool.id, updatedPool);
-                        appState.pools[pool.id] = updatedPool;
-                        render();
-                    } catch(e) {
-                        showToast(`重命名失败: ${e.message}`, true);
-                    } finally {
-                        showLoading(false);
-                    }
-                } else {
-                    hideModal();
-                }
-            };
-        });
-
-        dom.deletePoolBtn.addEventListener('click', () => {
-            const pool = appState.pools[appState.activePoolId];
-            if (!pool) return;
-            showModal({ title: `删除链接池 "${pool.name}"`, text: '此操作不可恢复。您确定要继续吗？', inputVisible: false, confirmText: '确认删除' });
-            onModalConfirm = async () => {
-                showLoading(true);
-                hideModal();
-                try {
-                    await api.deletePool(pool.id);
-                    delete appState.pools[pool.id];
-                    const remainingIds = Object.keys(appState.pools);
-                    appState.activePoolId = remainingIds.length > 0 ? remainingIds[0] : null;
-                    localStorage.setItem('linkFuserActivePool', appState.activePoolId);
-                    render();
-                } catch(e) {
-                    showToast(`删除失败: ${e.message}`, true);
-                } finally {
-                    showLoading(false);
-                }
-            };
-        });
-
-        dom.poolSelector.addEventListener('change', (e) => {
-            appState.activePoolId = e.target.value;
-            localStorage.setItem('linkFuserActivePool', appState.activePoolId);
-            render();
-        });
-        
-        dom.addUrlForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const pool = appState.pools[appState.activePoolId];
-            if (!pool) return;
-            const newUrl = dom.urlInput.value.trim();
-            if (newUrl) {
-                try {
-                    new URL(newUrl);
-                    if (!pool.urls.includes(newUrl)) {
-                       const updatedUrls = [...pool.urls, newUrl];
-                       showLoading(true);
-                       await api.updatePool(pool.id, { ...pool, urls: updatedUrls });
-                       pool.urls = updatedUrls;
-                       showLoading(false);
-                       render();
-                       showToast('链接添加成功！');
-                    } else {
-                       showToast('该链接已存在于池中。', true);
-                    }
-                    dom.urlInput.value = '';
-                } catch (_) {
-                   showToast('请输入有效的URL链接。', true);
-                }
+                });
+                
+                addLinkBtn.addEventListener('click', handleAddLink);
+                newLinkInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') handleAddLink();
+                });
+                linkListEl.addEventListener('click', handleDeleteLink);
+                
+                modeRandomBtn.addEventListener('click', () => handleChangeMode('random'));
+                modePollBtn.addEventListener('click', () => handleChangeMode('poll'));
+                copyLinkBtn.addEventListener('click', handleCopyLink);
             }
-        });
-        
-        dom.urlListDiv.addEventListener('click', async (e) => {
-            if (e.target.classList.contains('btn-delete-url')) {
-                const pool = appState.pools[appState.activePoolId];
-                const index = parseInt(e.target.dataset.index, 10);
-                if (pool && !isNaN(index)) {
-                    const updatedUrls = pool.urls.filter((_, i) => i !== index);
-                    showLoading(true);
-                    await api.updatePool(pool.id, { ...pool, urls: updatedUrls });
-                    pool.urls = updatedUrls;
-                    showLoading(false);
-                    render();
-                }
-            }
-        });
 
-        dom.modeRadios.forEach(radio => radio.addEventListener('change', async (e) => {
-            const pool = appState.pools[appState.activePoolId];
-            if (pool && pool.mode !== e.target.value) {
-                showLoading(true);
-                await api.updatePool(pool.id, { ...pool, mode: e.target.value });
-                pool.mode = e.target.value;
-                showLoading(false);
-            }
-        }));
-        
-        dom.copyBtn.addEventListener('click', () => {
-            if (!dom.fusedUrlInput.value) return;
-            navigator.clipboard.writeText(dom.fusedUrlInput.value).then(() => {
-                const originalText = dom.copyBtn.textContent;
-                dom.copyBtn.textContent = '已复制!';
-                dom.copyBtn.classList.remove('btn-primary');
-                dom.copyBtn.classList.add('bg-green-600');
-                setTimeout(() => {
-                    dom.copyBtn.textContent = originalText;
-                    dom.copyBtn.classList.add('btn-primary');
-                    dom.copyBtn.classList.remove('bg-green-600');
-                }, 2000);
-            });
+            init();
         });
-
-        dom.modal.cancelBtn.addEventListener('click', hideModal);
-        dom.modal.confirmBtn.addEventListener('click', () => {
-            if (typeof onModalConfirm === 'function') onModalConfirm(dom.modal.input.value);
-        });
-        dom.modal.input.addEventListener('keydown', (e) => {
-             if (e.key === 'Enter') dom.modal.confirmBtn.click();
-        });
-
-        document.addEventListener('DOMContentLoaded', init);
-    })();
     </script>
 </body>
 </html>
