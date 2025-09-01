@@ -52,7 +52,7 @@ const WORKER_URL = '[https://my-link-fuser-api.user.workers.dev](https://my-link
 
 ### Step 6: Deploy the Frontend Page
 
-Your frontend file is now configured. You can deploy the `link-fuser-pro-backend.html` file anywhere:
+Your frontend file is now configured. You can deploy the `index.html` file anywhere:
 
 *   **Recommended:** Use Cloudflare Pages (it's convenient to manage it in the same place as your Worker).
 *   **Other options:** GitHub Pages, Vercel, or any other static website hosting service you prefer.
