@@ -47,7 +47,7 @@ const WORKER_URL = '[https://my-link-fuser-api.user.workers.dev](https://my-link
 
 ### 第6步：部署前端页面
 
-现在您的前端文件已经配置好了。您可以将 `link-fuser-pro-backend.html` 部署到任何地方：
+现在您的前端文件已经配置好了。您可以将 `index.html` 部署到任何地方：
 
 *   **推荐方式**：使用 Cloudflare Pages (与 Workers 在同一个地方管理，非常方便)。
 *   **其他方式**：GitHub Pages、Vercel，或者您自己的任何静态网站托管服务器。
